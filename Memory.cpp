@@ -1,6 +1,6 @@
 #define MEM_SIZE 512
-#define DELAY 100
-#define INDEX_ARRAY_SIZE MEM_SIZE/2
+#define DELAY 1000
+#define INDEX_ARRAY_SIZE MEM_SIZE/8
 #include "systemc.h"
 #include <queue>
 using namespace std;
@@ -10,7 +10,8 @@ public:
     enum Function {
         FUNC_NONE,
         FUNC_READ,
-        FUNC_WRITE
+        FUNC_WRITE,
+        FUNC_CONT
     };
     enum RETSignal {
         RSIG_NONE,
@@ -70,9 +71,9 @@ private:
     		values->push(INT_MIN);
     }
 
-    RETSignal read()
+    RETSignal read(int finishedRequesting = 0)
     {
-        if (m_errorCode == 0) {
+        if (finishedRequesting == 0) {
             Port_Data.write(m_data[m_curAddr]);
             current = m_data[m_curAddr];
             values.push(current);
@@ -84,8 +85,16 @@ private:
             return RSIG_READ_FIN;
         }
         else {
-            m_errorsCnt++;
-            return RSIG_ERROR;
+        	//cout<<"values.front(): " << values.back() << " size: " << values.size() << "\n";
+            if( values.size() > 0 ){
+            	//cout << "values size: " << values.size() << endl;
+	            Port_Data.write(values.front());
+	            cycle ++ ;
+	            values.pop();
+	        }
+	        else if (values.size() == 0)
+	        	sc_stop();
+	        return RSIG_ERROR;
         }
     }
 
@@ -100,6 +109,10 @@ private:
                 case Memory::FUNC_READ: {
                     retSig = read();
                     break;
+                }
+                case Memory::FUNC_CONT:{
+                	retSig = read(1);
+                	break;
                 }
                 /*case Memory::FUNC_WRITE: {
                     retSig = write();
@@ -134,7 +147,7 @@ public:
     SC_CTOR(CPU)
     {
         SC_METHOD(execCycle);
-        sensitive << Port_CLK;
+        sensitive << Port_CLK.neg();
         dont_initialize();
         SC_METHOD(memDone);
         sensitive << Port_MemDone;
@@ -182,11 +195,13 @@ private:
 	        m_waitMem = true;
 	        
     	}
-    	else if ( cycle == INDEX_ARRAY_SIZE){
+    	else if ( cycle == INDEX_ARRAY_SIZE ){
     		cout<< "Finished requesting.....\n";
+    		Port_MemFunc.write(Memory::FUNC_CONT);
     		cycle++;
     	}
-    	cout<<cycle << " CPU data: "<< Port_MemData.read()<<endl;
+    	if(Port_MemData.read() != INT_MIN)
+    		cout<<cycle << " CPU data: "<< Port_MemData.read()<<endl;
 	    cycle++;
     }
     void memDone()
@@ -195,6 +210,6 @@ private:
             return;
         }
         m_waitMem = false;
-        Port_MemFunc.write(Memory::FUNC_NONE);
+        //Port_MemFunc.write(Memory::FUNC_NONE);
     }
 };

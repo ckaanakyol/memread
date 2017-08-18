@@ -27,6 +27,6 @@ int sc_main(int argc, char* argv[])
 	cpu.Port_CLK(clk);
 	cout << "DONE\n\n\nRunning (press CTRL+C to exit)... \n";
 	/* Start Simulation */
-	sc_start(500000.0, SC_PS);
+	sc_start();
 	return 0;
 }
